@@ -6,7 +6,8 @@
 
 ### Lectures and accompanying notes
 
-- Slides: Bayes 1
-- Slides: Bayes 2
-- R Markdown reproducible code: here.
-
+- Slides: [Bayes 1](https://github.com/vasishth/EMLAR2022BayesTutorial/blob/main/EMLAR2022vasishth.pdf)
+- Slides: Bayes 2 coming soon
+- R Markdown reproducible code: [here](https://github.com/vasishth/EMLAR2022BayesTutorial/blob/main/Bayesexamplecode.R)
+- Data: [Gibson and Wu 2013](https://github.com/vasishth/EMLAR2022BayesTutorial/blob/main/data/gibsonwu2012data.txt)
+- Data: [Gibson and Wu replication attempt](https://github.com/vasishth/EMLAR2022BayesTutorial/blob/main/data/gibsonwu2012datarepeat.txt)
