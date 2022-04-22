@@ -1,0 +1,364 @@
+---
+title: "Bayes 2 lecture (EMLAR 2022)"
+author: "Shravan Vasishth"
+date: "4/21/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(brms)
+library(bayesplot)
+library(cowplot)
+library(tidyverse)
+```
+
+# Review of Bayes 1 lecture
+
+The main points that I discussed were as follows.
+
+## Bayes' rule allows us to compute/derive the posterior distribution of a
+parameter or parameters of interest:
+
+$$f(\mu | y) \propto f(y|\mu)\times f(\mu)$$
+
+## Example: Complications in an operation
+
+I had discussed the example informally/graphically, but here is a more formal 
+presentation:
+
+- We are modeling the number of complications that occur in operations.
+- Operationalize the occurrence of a complication with 1, no complication 0.
+- This suggests a binomial likelihood; 
+  - k is the number of successes
+  - n is the total number of trials (roughly: independent data points)
+  - $theta$ is the probability parameter (the probability of complications)
+
+\begin{equation}
+\mathit{Binomial}(k|n,\theta) = 
+\binom{n}{k} \theta^{k} (1-\theta)^{n-k}
+\end{equation}
+
+In R, this function is the `dbinom` function; in this function, k is called x, n is called size, and prob refers to theta (because otherwise life would be too easy). Once the data are collected, the data are fixed values (constants). One can then see `dbinom` as a function of $\theta$. That is called the likelihood function.
+
+As an example, if we had k=0 complications (successes here), and n=10, then the likelihood function $f(n,k|\theta)$ is:
+
+```{r }
+theta<-seq(0,1,by=0.01)
+plot(theta,dbinom(x=0,size=10,prob=theta),type="l")
+```
+
+Notice that the maximum likelihood estimate is k/n, here 0/10=0. This is the estimate of $\theta$ that yields the maximum point in the likelihood function above.
+
+**Exercise**: Verify graphically that if k=5, n=10, then the maximum point is at $\theta=0.5$.
+
+### Applying Bayes' rule in our simple example
+
+Likelihood: $\binom{n}{k} \theta^{k} (1-\theta)^{n-k}$
+
+Prior on theta is Beta(3,27). 
+
+\begin{equation}
+f(\theta|a,b)=  \frac{1}{B(a=3,b=27)} \theta^{a - 1} (1-\theta)^{b-1}   
+(\#eq:beta)
+\end{equation}
+
+The posterior (up to proportionality): 
+
+
+\begin{equation}
+p(\theta|n,k)\propto  \theta^{k} (1-\theta)^{n-k} \theta^{a - 1} (1-\theta)^{b-1}
+(\#eq:beta)
+\end{equation}
+
+This gives us the posterior of $\theta \sim Beta(n+a,n+b-k)$.
+
+### Insight: The posterior distribution is a compromise between the prior and the likelihood
+
+[This is an excerpt from our book.]
+
+Let the data be k=80, n=100. This could be a question-response accuracy for example.
+
+Just for the sake of illustration, let's take four different beta priors, each reflecting increasing certainty. 
+
+  - $\mathit{Beta}(a=2,b=2)$
+  - $\mathit{Beta}(a=3,b=3)$
+  - $\mathit{Beta}(a=6,b=6)$
+  - $\mathit{Beta}(a=21,b=21)$
+
+Each prior reflects a belief that $\theta=0.5$, with varying degrees of (un)certainty. Given the general formula we developed above for the beta-binomial case, we just need to plug in the likelihood and the prior to get the posterior:
+
+\begin{equation}
+p(\theta | n,k) \propto p(k |n,\theta) p(\theta)
+\end{equation}
+
+The four corresponding posterior distributions would be:
+
+\begin{equation}
+p(\theta\mid k,n) \propto [\theta^{80} (1-\theta)^{20}] [\theta^{2-1}(1-\theta)^{2-1}] = \theta^{82-1} (1-\theta)^{22-1}
+\end{equation}
+
+\begin{equation}
+p(\theta\mid k,n) \propto [\theta^{80} (1-\theta)^{20}] [\theta^{3-1}(1-\theta)^{3-1}] = \theta^{83-1} (1-\theta)^{23-1}
+\end{equation}
+
+\begin{equation}
+p(\theta\mid k,n) \propto [\theta^{80} (1-\theta)^{20}] [\theta^{6-1}(1-\theta)^{6-1}] = \theta^{86-1} (1-\theta)^{26-1}
+\end{equation}
+
+\begin{equation}
+p(\theta\mid k,n) \propto [\theta^{80} (1-\theta)^{20}] [\theta^{21-1}(1-\theta)^{21-1}] = \theta^{101-1} (1-\theta)^{41-1}
+\end{equation}
+
+We can visualize each of these triplets of priors, likelihoods and posteriors; see Figure \@ref(fig:postbetavizvar). 
+
+```{r postbetavizvar, echo=FALSE,fig.cap = "The (scaled) likelihood, prior, and posterior in the beta-binomial conjugate example, for different uncertainties in the prior. The likelihood is scaled to integrate to 1 to make its comparison easier.  "}
+k <- 80
+n <- 100
+## Prior
+a <- 4
+b <- 4
+binom_lh <- function(theta) {
+dbinom(x=k, size =n, prob = theta)
+}
+
+K <- integrate(f = binom_lh, lower = 0, upper = 1)$value
+
+binom_scaled_lh <- function(theta) 1/K * binom_lh(theta)
+  
+p_beta <- ggplot(data = tibble(theta = c(0, 1)), aes(theta)) +
+  stat_function(
+    fun = dbeta,
+    args = list(shape1 = a, shape2 = b),
+    aes(linetype = "Prior")
+  ) +
+  ylab("density") +
+  stat_function(
+    fun = dbeta,
+    args = list(shape1 = k + a, shape2 = n - k + b), aes(linetype = "Posterior")
+  ) +
+  stat_function(
+    fun = binom_scaled_lh,
+    aes(linetype = "Scaled likelihood")
+  ) +
+  theme_bw() +
+  theme(legend.title = element_blank())
+p_beta
+```
+
+If you hold the likelihood function constant (the data are constant at $n=100, k=80$ in the above example), the tighter the prior, the greater the extent to which the posterior orients itself towards the prior.  In general, we can say the following about the likelihood-prior-posterior relationship:
+
+- The posterior distribution is a compromise between the prior and the likelihood.
+- For a given set of data, the greater the certainty in the prior, the more heavily the posterior will be influenced by the prior mean.
+- Conversely, for a given set of data, the greater the *un*certainty in the prior, the more heavily the posterior will be influenced by the likelihood.
+
+$ Example: Fitting a linear mixed model for a planned experiment
+
+Read in and prepare the two data sets:
+
+```{r}
+## load example data-set:
+gw<-read.table("data/gibsonwu2012data.txt",
+               header=TRUE)
+## sum-contrast coding of predictor:
+gw$so <- ifelse(
+  gw$type%in%c("subj-ext"),-1,1)
+## subset critical region
+gw1<-subset(gw,region=="headnoun")
+
+## load second data-set:
+gw2<-read.table("data/gibsonwu2012datarepeat.txt",
+                header=TRUE)
+gw2$so <- ifelse(
+  gw2$condition%in%c("subj-ext"),-1,1)
+```
+Frequentist analysis:
+
+```{r}
+## frequentist analysis:
+library(lme4)
+m_lmer<-lmer(rt~so + (1+so|subj)+(1+so|item),gw1)
+summary(m_lmer)
+```
+
+Always visualize the data first:
+
+```{r}
+boxplot(rt~so,gw1)
+```
+
+Better:
+
+```{r}
+p1CN <- ggplot(gw1, aes(x=type, y=rt)) + 
+  geom_boxplot() + ggtitle("Chinese RCs")
+p1CN<-p1CN+geom_jitter(shape=16, 
+                       position=position_jitter(0.2))+
+  theme_bw()+#scale_y_continuous(trans='log2')+
+  ylab("Reading times (ms)")+
+  coord_cartesian(ylim = c(100,7500)) 
+p1CN
+```
+
+Log-transformed reading times:
+
+```{r}
+m_lmerlog<-lmer(log(rt)~so + (1+so|subj)+(1+so|item),gw1)
+summary(m_lmerlog)
+
+boxplot(log(rt)~so,gw1)
+```
+
+Bayesian analysis:
+
+```{r cache=TRUE,message=FALSE,warning=FALSE,results='hide'}
+priors <- c(set_prior("normal(6, 1.5)", class = "Intercept"),
+            set_prior("normal(0, .05)", class = "b", 
+                      coef = "so"),
+            set_prior("normal(0, 1)", class = "sd"),
+            set_prior("normal(0, 1)", class = "sigma"),
+            set_prior("lkj(2)", class = "cor"))
+
+m_gw<-brm(rt~so + (1+so|subj) + (1+so|item),gw1,family=lognormal(),
+          prior=priors)
+summary(m_gw)
+```
+
+Posterior predictive check:
+
+```{r}
+pp_check(m_gw)
+```
+
+Summarize the effect of interest (in ms), and summarize individual-level variation:
+
+```{r}
+## graphical visualization:
+postgw<-posterior_samples(m_gw)
+## extract posteriors:
+alpha<-postgw$b_Intercept
+beta<-postgw$b_so
+cor<-posterior_samples(m_gw,"^cor")
+sd<-posterior_samples(m_gw,"^sd")
+sigma<-posterior_samples(m_gw,"sigma")
+
+## subject level effects:
+subj_re<-posterior_samples(m_gw,"^r_subj")
+item_re<-posterior_samples(m_gw,"^r_item")
+```
+
+Mean effect in ms:
+
+```{r}
+## mean effect on ms scale:
+meandiff<- exp(alpha + beta) - exp(alpha - beta)
+mean(meandiff)
+round(quantile(meandiff,prob=c(0.025,0.975)),0)
+
+## mean effect:
+hist(meandiff,freq=FALSE,
+     main="Mean OR vs SR processing cost",
+     xlab=expression(exp(alpha + beta)- exp(alpha - beta)))
+```
+
+Individual differences:
+
+```{r}
+## individual level estimates:
+nsubj<-37
+subjdiff<-matrix(rep(NA,nsubj*4000),nrow=nsubj)
+for(i in 1:nsubj){
+  subjdiff[i,]<-exp(alpha + subj_re[,i]  + (beta+subj_re[,i+nsubj])) - 
+    exp(alpha + subj_re[,i] - 
+          (beta+subj_re[,i+nsubj]))
+}
+
+subjdiff<-t(subjdiff)
+
+subjdiff<-as.data.frame(subjdiff)
+colnames(subjdiff)<-paste("s",c(1:nsubj),sep="")
+mns <- colMeans(subjdiff)
+subjdiff<-subjdiff[,order(mns)]
+mcmc_areas(subjdiff)
+```
+
+Shrinkage in action:
+
+```{r}
+## lmer
+m_lmer<-lmer(log(rt)~so + (1+so|subj),gw1)
+summary(m_lmer)
+
+
+alphalmer<-coef(m_lmer)$subj[,1]
+betalmer<-coef(m_lmer)$subj[,2]
+lmerest<-exp(alphalmer+betalmer)-exp(alphalmer-betalmer)
+
+
+## lmList:
+m_lmlist<-lmList(log(rt)~so|subj,gw1)
+summary(m_lmlist)
+
+alphalmlist<-coef(m_lmlist)[1]
+betalmlist<-coef(m_lmlist)[2]
+lmlistest<-exp(alphalmlist+betalmlist)-exp(alphalmlist-betalmlist)
+
+comparison<-data.frame(subj=factor(1:37),brm=mns,lmlist=lmlistest,lmer=lmerest)
+colnames(comparison)[c(3,4)]<-c("lmlist","lmer")
+```
+
+```{r}
+plot(lmlist~subj,comparison,ylab="estimate",main="lmlist vs Bayes\n shrinkage in action")
+points(brm~subj,pch=3,comparison)
+arrows(x0=1:37,y0=comparison$lmlist,x1=1:37,y1=comparison$brm,
+       angle=45,code=2,length=0.1,col="red")
+```
+
+```{r}
+plot(lmlist~subj,comparison,ylab="estimate",main="lmlist vs lmer\n shrinkage in action")
+points(lmer~subj,pch=3,comparison)
+arrows(x0=1:37,y0=comparison$lmlist,x1=1:37,y1=comparison$lmer,
+       angle=45,code=2,length=0.1,col="red")
+
+plot(lmer~subj,comparison,ylab="estimate",main="lmer vs Bayes\n regularization in action")
+points(brm~subj,pch=3,comparison)
+arrows(x0=1:37,y0=comparison$lmer,x1=1:37,y1=comparison$brm,
+       angle=45,code=2,length=0.1,col="red")
+```
+
+
+# Bayes factors analysis
+
+```{r cache=TRUE,message=FALSE,warning=FALSE,results='hide'}
+## Bayes factor analysis:
+m_gw<-brm(rt~so + (1+so|subj) + (1+so|item),gw1,family=lognormal(),
+          prior=priors,warmup=5000,iter=20000,
+          save_pars=save_pars(all=TRUE))
+summary(m_gw)
+
+priors0 <- c(set_prior("normal(6, 1.5)", class = "Intercept"),
+             set_prior("normal(0, 1)", class = "sd"),
+             set_prior("normal(0, 1)", class = "sigma"),
+             set_prior("lkj(2)", class = "cor"))
+
+m_gw0<-brm(rt~1 + (1+so|subj),gw1,family=lognormal(),
+           prior=priors0,,warmup=5000,iter=20000,
+           save_pars=save_pars(all=TRUE))
+
+```
+
+
+Compute the BF several times to check that it is stable:
+
+```{r}
+bayes_factor(m_gw,m_gw0)
+bayes_factor(m_gw,m_gw0)
+```
+
+The Bayes factor is sensitive to the prior, so a sensitivity analysis is a must. Neer report just one Bayes factor with a (vague) prior on the target parameter. See:
+
+Daniel J. Schad, Bruno Nicenboim, Paul-Christian Bürkner, Michael Betancourt, and Shravan Vasishth. Workflow Techniques for the Robust Use of Bayes Factors. Psychological Methods, 2022.
+https://osf.io/y354c/
+
+
